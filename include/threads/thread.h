@@ -136,6 +136,7 @@ struct thread {
   struct semaphore exit_sema;  // 자식 프로세스 종료 signal
   struct semaphore wait_sema;  // exit_sema를 기다릴 때 사용
 #endif
+#define VM
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;

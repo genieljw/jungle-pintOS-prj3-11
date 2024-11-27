@@ -229,8 +229,7 @@ pml4_get_page (uint64_t *pml4, const void *uaddr) {
  * otherwise it is read-only.
  * Returns true if successful, false if memory allocation
  * failed. */
-bool
-pml4_set_page (uint64_t *pml4, void *upage, void *kpage, bool rw) {
+bool pml4_set_page (uint64_t *pml4, void *upage, void *kpage, bool rw) {
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (pg_ofs (kpage) == 0);
 	ASSERT (is_user_vaddr (upage));

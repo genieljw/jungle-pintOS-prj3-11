@@ -159,7 +159,6 @@ int open(const char *file) {
   struct file *newfile = filesys_open(file);
 
   if (newfile == NULL)
-      //printf("******************************");
       return -1;
 
   int fd = process_add_file(newfile);
