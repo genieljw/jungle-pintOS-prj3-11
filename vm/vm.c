@@ -4,8 +4,9 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include <hash.h>
-#include <vaddr.h>
-#include <mmu.h>
+#include "threads/vaddr.h"
+#include "threads/mmu.h"
+#include "userprog/process.h"
 
 static struct list frame_table;
 static struct list_elem *frame_start;
@@ -167,25 +168,33 @@ static struct frame *vm_get_frame (void) {
 }
 
 /* Growing the stack. */
-static void
-vm_stack_growth (void *addr UNUSED) {
+static void vm_stack_growth (void *addr UNUSED) {
+	PANIC("TODO");
 }
 
 /* Handle the fault on write_protected page */
-static bool
-vm_handle_wp (struct page *page UNUSED) {
+static bool vm_handle_wp (struct page *page UNUSED) {
 }
 
 /* Return true on success */
-bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
+bool vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,	bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
-	/* TODO: Your code goes here */
+	if(addr == NULL)
+			return false;
+	if(is_kernel_vaddr(addr))
+			return false;
+	if(not_present){
+		page = spt_find_page(spt, addr);
+		if(page == NULL)
+				return false;
+		if(write == 1 && page->writable == 0)
+				return false;
+		return vm_do_claim_page(page);
+	}
 
-	return vm_do_claim_page (page);
+	return false;
 }
 
 /* Free the page.
@@ -229,14 +238,55 @@ void supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 }
 
 /* Copy supplemental page table from src to dst */
-bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+bool supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {
+	struct hash_iterator iter;
+	struct page *src_page;
+
+	hash_first(&iter, &src->spt_hash);
+	while (hash_next(&iter)){
+			src_page = hash_entry(hash_cur(&iter), struct page, hash_elem);
+
+			if(src_page->operations->type == VM_UNINIT){
+				if (!vm_alloc_page_with_initializer(page_get_type(src_page), src_page->va, src_page->writable, src_page->uninit.init, src_page->uninit.aux))
+						return false;
+				
+				continue;
+			}
+
+			if (src_page->uninit.type & VM_MARKER_0){
+				setup_stack(&thread_current()->tf);
+				goto done;
+			}
+
+			if(!vm_alloc_page(page_get_type(src_page), src_page->va, src_page->writable))
+					return false;
+			
+			if(!vm_claim_page(src_page->va))
+					return false;
+
+		done:
+				struct page *dst_page = spt_find_page(dst, src_page->va);
+				memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);		
+	}
+	return true;	
 }
 
 /* Free the resource hold by the supplemental page table */
-void
-supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
+void supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	// struct hash_iterator iter;
+	// struct page *page = hash_entry(hash_cur(&iter), struct page, hash_elem);
+
+	// hash_first(&iter, &spt->spt_hash);
+	// while (hash_next(&iter)){
+	// 	page = hash_entry(hash_cur(&iter), struct page, hash_elem);
+
+	// 	if(page->operations->type == VM_FILE){
+	// 		do_munmap(page->va);
+	// 	}
+	// }
+	if(&spt->spt_hash == NULL)
+			return;
+	hash_destroy(&spt->spt_hash, hash_destructor);	
 }

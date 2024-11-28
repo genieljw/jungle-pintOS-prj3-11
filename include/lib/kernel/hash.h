@@ -104,4 +104,7 @@ uint64_t hash_string(const char *);
 bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux);
 void action_func(struct hash_elem *e, void *aux);
 
+/**project3 - Anonymous Page */
+void hash_destructor(struct hash_elem *e, void *aux);
+
 #endif /* lib/kernel/hash.h */
