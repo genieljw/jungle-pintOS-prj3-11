@@ -367,13 +367,13 @@ static void remove_elem (struct hash *h, struct hash_elem *e) {
 }
 
 /**project3 - memory management : 해시 인덱스 리턴*/
-uint64_t hash_func(const struct hash_elem *e, void *aux){
+uint64_t hash_func(const struct hash_elem *e, void *aux UNUSED){
 	const struct page *p = hash_entry(e, struct page, hash_elem);
 
 	return hash_bytes(&p->va, sizeof(p->va));
 }
 
-/**project3 - memory management : 해시 인덱스 리턴*/
+/**project3 - memory management : 오름차순 정렬*/
 bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux){
 	const struct page *pa = hash_entry(a, struct page, hash_elem);
 	const struct page *pb = hash_entry(b, struct page, hash_elem);
@@ -388,5 +388,6 @@ bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux){
 /**project3 - anonymous page : hash 파괴 */
 void hash_destructor(struct hash_elem *e, void *aux){
 	const struct page *p = hash_entry(e, struct page, hash_elem);
+	destroy(p);
 	free(p);
 }

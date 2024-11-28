@@ -48,8 +48,7 @@ static struct frame *vm_evict_frame (void);
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
-bool
-vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux) {
+bool vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux) {
 
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
@@ -184,26 +183,31 @@ bool vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,	bool u
 	/* TODO: Validate the fault */
 	if(addr == NULL)
 			return false;
-	if(is_kernel_vaddr(addr))
+	if(is_kernel_vaddr(addr) && user)
 			return false;
+
 	if(not_present){
 		page = spt_find_page(spt, addr);
 		if(page == NULL)
 				return false;
 		if(write == 1 && page->writable == 0)
 				return false;
-		return vm_do_claim_page(page);
+		return vm_claim_page(page);
 	}
-
 	return false;
 }
 
 /* Free the page.
  * DO NOT MODIFY THIS FUNCTION. */
-void
-vm_dealloc_page (struct page *page) {
+void vm_dealloc_page (struct page *page) {
 	destroy (page);
 	free (page);
+}
+
+void hash_page_destroy(struct hash_elem *e, void *aux){
+	struct page *page = hash_entry(e, struct page, hash_elem);
+	destroy(page);
+	free(page);
 }
 
 /* Claim the page that allocate on VA. */
@@ -247,24 +251,21 @@ bool supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, s
 	while (hash_next(&iter)){
 			src_page = hash_entry(hash_cur(&iter), struct page, hash_elem);
 
-			if(src_page->operations->type == VM_UNINIT){
+			if (src_page->operations->type == VM_UNINIT){
 				if (!vm_alloc_page_with_initializer(page_get_type(src_page), src_page->va, src_page->writable, src_page->uninit.init, src_page->uninit.aux))
-						return false;
-				
+					return false;
 				continue;
 			}
-
-			if (src_page->uninit.type & VM_MARKER_0){
+			if(src_page->uninit.type & VM_MARKER_0){
 				setup_stack(&thread_current()->tf);
 				goto done;
 			}
 
 			if(!vm_alloc_page(page_get_type(src_page), src_page->va, src_page->writable))
 					return false;
-			
 			if(!vm_claim_page(src_page->va))
 					return false;
-
+			
 		done:
 				struct page *dst_page = spt_find_page(dst, src_page->va);
 				memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);		
@@ -287,7 +288,5 @@ void supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	// 		do_munmap(page->va);
 	// 	}
 	// }
-	if(&spt->spt_hash == NULL)
-			return;
-	hash_destroy(&spt->spt_hash, hash_destructor);	
+	hash_clear(&spt->spt_hash, hash_page_destroy);	
 }
