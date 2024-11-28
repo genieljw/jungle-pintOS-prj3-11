@@ -10,9 +10,13 @@
 #include "intrinsic.h"
 #include "threads/palloc.h"
 
+#include <string.h>
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "threads/mmu.h"
+#include "threads/palloc.h"
 #include "userprog/process.h"
+
 
 
 
@@ -125,11 +129,25 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	}
 }
 
+#ifndef VM
 /**project2 - system call */
 void check_address(void *addr){
-	if(is_kernel_vaddr(addr) || addr == NULL || pml4_get_page(thread_current()->pml4, addr) == NULL)
+	if(is_kernel_vaddr(addr) || addr == NULL || pml4_get_page(curr->pml4, addr) == NULL)
 			exit(-1);
+
+  return spt_find_page(&curr->spt, addr);
 }
+#else
+/**project3 - anonymous page */
+struct page* check_address(void *addr){
+  thread_t *curr = thread_current();
+
+	if(is_kernel_vaddr(addr) || addr == NULL)
+			exit(-1);
+
+  return spt_find_page(&curr->spt, addr);
+}
+#endif
 
 void halt(void){
 	power_off();

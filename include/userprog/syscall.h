@@ -6,11 +6,15 @@
 
 typedef int pid_t;
 typedef int off_t;
-
 //typedef int32_t off_t;
 
-
+#ifndef VM
 void check_address(void *addr);
+#else
+/**project3 - anonymous page */
+struct page *check_address(void *addr);
+#endif
+
 void halt(void);
 void exit(int status);
 bool create(const char *file, unsigned initial_size);

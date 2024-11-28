@@ -218,6 +218,10 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
+	#ifdef VM
+		supplemental_page_table_init(&thread_current()->spt);
+	#endif
+
 	/** project2-Command Line Parsing */
 	char *ptr, *arg;
   int arg_cnt = 0;
@@ -716,7 +720,9 @@ install_page (void *upage, void *kpage, bool writable) {
  * upper block. */
 
 static bool lazy_load_segment (struct page *page, void *aux) {
-	struct container *container = aux;
+	if(page == NULL)
+			return false;
+	struct container *container = (struct container *)aux;
 	struct file *file = container->file;
 	off_t offset = container->offset;
 	size_t page_read_bytes = container->page_read_bytes;
