@@ -7,6 +7,7 @@
 #include "threads/vaddr.h"
 #include "threads/mmu.h"
 #include "userprog/process.h"
+#include <string.h>
 
 static struct list frame_table;
 static struct list_elem *frame_start;
@@ -183,16 +184,14 @@ bool vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,	bool u
 	/* TODO: Validate the fault */
 	if(addr == NULL)
 			return false;
-	if(is_kernel_vaddr(addr) && user)
+	if(is_kernel_vaddr(addr))
 			return false;
 
 	if(not_present){
-		page = spt_find_page(spt, addr);
-		if(page == NULL)
-				return false;
-		if(write == 1 && page->writable == 0)
-				return false;
-		return vm_claim_page(page);
+		if(!vm_claim_page(addr)){
+			return false;
+		}
+		return true;
 	}
 	return false;
 }
@@ -212,7 +211,6 @@ void hash_page_destroy(struct hash_elem *e, void *aux){
 
 /* Claim the page that allocate on VA. */
 bool vm_claim_page (void *va UNUSED) {
-	struct page *page = spt_find_page(&thread_current()->spt, va);
 	/* TODO: Fill this function */
 	struct page *page = spt_find_page(&thread_current()->spt, va);
 
@@ -243,34 +241,34 @@ void supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 }
 
 /* Copy supplemental page table from src to dst */
-bool supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {
-	struct hash_iterator iter;
-	struct page *src_page;
+bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {
+    struct hash_iterator iter;
+    struct page *src_page;
 
-	hash_first(&iter, &src->spt_hash);
-	while (hash_next(&iter)){
-			src_page = hash_entry(hash_cur(&iter), struct page, hash_elem);
+    hash_first(&iter, &src->spt_hash);
+    while (hash_next(&iter)) {
+        src_page = hash_entry(hash_cur(&iter), struct page, hash_elem);
 
-			if (src_page->operations->type == VM_UNINIT){
-				if (!vm_alloc_page_with_initializer(page_get_type(src_page), src_page->va, src_page->writable, src_page->uninit.init, src_page->uninit.aux))
-					return false;
-				continue;
-			}
-			if(src_page->uninit.type & VM_MARKER_0){
-				setup_stack(&thread_current()->tf);
-				goto done;
-			}
+        if (src_page->operations->type == VM_UNINIT) {
+            if (!vm_alloc_page_with_initializer(page_get_type(src_page), src_page->va, src_page->writable, src_page->uninit.init, src_page->uninit.aux))
+                return false;
+            continue;
+        }
+        if (src_page->uninit.type & VM_MARKER_0) {
+            setup_stack(&thread_current()->tf);
+            goto done;  // goto 이후의 선언문을 피하려면 라벨 앞에서 선언
+        }
 
-			if(!vm_alloc_page(page_get_type(src_page), src_page->va, src_page->writable))
-					return false;
-			if(!vm_claim_page(src_page->va))
-					return false;
-			
-		done:
-				struct page *dst_page = spt_find_page(dst, src_page->va);
-				memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);		
-	}
-	return true;	
+        if (!vm_alloc_page(page_get_type(src_page), src_page->va, src_page->writable))
+            return false;
+        if (!vm_claim_page(src_page->va))
+            return false;
+
+				struct page *dst_page = spt_find_page(dst, src_page->va);  // 라벨 앞에서 선언문 작성
+    done:  // done 라벨 위치
+        memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);  // memcpy 사용
+    }
+    return true;
 }
 
 /* Free the resource hold by the supplemental page table */
@@ -288,5 +286,5 @@ void supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	// 		do_munmap(page->va);
 	// 	}
 	// }
-	hash_clear(&spt->spt_hash, hash_page_destroy);	
+	hash_clear(&spt->spt_hash, hash_destructor);	
 }
